@@ -6,4 +6,4 @@ def return_difference(num1, num2):
     return num1 - num2
 
 
-print(return_difference(3,1))
+print(return_difference(3, 1))
