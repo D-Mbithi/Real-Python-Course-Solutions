@@ -1,0 +1,4 @@
+This is the first line
+The second line is longer
+Hippopotamus
+New lines appendedAnother new lines appended
