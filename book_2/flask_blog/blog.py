@@ -1,6 +1,8 @@
 # controller for blog
 
 #imports
+from functools import wraps
+import sqlite3
 from flask import (
         Flask,
         render_template,
@@ -11,8 +13,6 @@ from flask import (
         redirect,
         g
         )
-import sqlite3
-from functools import wraps
 
 
 # Comfiguration
@@ -44,7 +44,11 @@ def login_required(test):
 @app.route('/')
 @login_required
 def home():
-    return render_template('index.html')
+    g.db = connect_db()
+    cur = g.db.execute('select * from blog')
+    posts = [dict(title=row[0], post=row[1]) for row in cur.fetchall()]
+    g.db.close()
+    return render_template('index.html', posts=posts)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -69,6 +73,28 @@ def logout():
     session.pop('logged_in', None)
     flash('You have logout')
     return redirect(url_for('login'))
+
+
+@app.route('/add', methods=['GET', 'POST'])
+@login_required
+def add():
+    if request.method == 'POST':
+        title = request.form['title']
+        post = request.form['post']
+
+        if not title or not post:
+            flash('All fields need to be field')
+            return redirect(url_for('home'))
+
+        g.db = connect_db()
+        g.db.execute('INSERT INTO blog VALUES(?,?)', [request.form['title'], request.form['post']])
+        g.db.commit()
+        g.db.close()
+        flash('New post has been successfully posted.')
+
+        return redirect(url_for('home'))
+
+    return render_template('add_post.html')
 
 
 if __name__ == '__main__':

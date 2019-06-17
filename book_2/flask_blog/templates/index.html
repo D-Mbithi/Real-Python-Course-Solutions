@@ -5,5 +5,11 @@
 {% endblock %}
 
 {% block content %}
-
+<div class="container">
+  <h1>Flask Blog Posts</h1>
+  {% for post in posts%}
+    <h3>{{ post.title }}</h3>
+    <p>{{ post.post }}</p>
+  {% endfor %}
+</div>
 {% endblock %}
