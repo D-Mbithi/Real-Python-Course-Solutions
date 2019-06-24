@@ -14,6 +14,7 @@
     <table class="table">
       <tr>
         <form action="{{ url_for('new_task') }}" method="post">
+          {{ form.csrf_token }}
           <td>
             <label>Task Name:</label>
             <input name="name" type="text" />
@@ -49,7 +50,7 @@
     <br />
     <br />
     <h2>Open tasks:</h2>
-    <div class="datagrid">
+    <div class="datagrid text-center">
       <table class="table">
         <thead class="thead-dark">
           <tr>
@@ -57,11 +58,12 @@
             <th scope="col"><strong>Due Date</strong></th>
             <th scope="col"><strong>Priority</strong></th>
             <th scope="col"><strong>Actions</strong></th>
+            <th scope="col"><strong>User</strong></th>
           </tr>
         </thead>
         {% for task in open_tasks %}
         <tr>
-          <td class="text-capitalize">{{ task.name }}</td>
+          <td class="text-capitalize text-left">{{ task.name }}</td>
           <td >{{ task.due_date }}</td>
           <td >{{ task.priority }}</td>
           <td>
@@ -73,6 +75,7 @@
               Mark as Complete
             </a>
           </td>
+          <td class="text-capitalize">{{ task.poster.name }}</td>
         </tr>
         {% endfor %}
       </table>
@@ -92,7 +95,7 @@
             <th scope="col"><strong>Actions</strong></th>
           </tr>
         </thead>
-        {% for task in close_tasks %}
+        {% for task in closed_tasks %}
         <tr>
           <td class="text-capitalize">{{ task.name }}</td>
           <td>{{ task.due_date }}</td>

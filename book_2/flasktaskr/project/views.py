@@ -1,18 +1,18 @@
-import sqlite3
+import datetime
 from functools import wraps
 from flask import (
-    Flask, flash, render_template, redirect, request, session, url_for, g
+    Flask, flash, render_template, redirect, request, session, url_for
     )
-from forms import AddTaskForm
+from flask_sqlalchemy import SQLAlchemy
+from forms import AddTaskForm, RegisterForm, LoginForm
 
 # config
 app = Flask(__name__)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config.from_object('_config')
+db = SQLAlchemy(app)
 
-
-# DB connection function
-def connect_db():
-    return sqlite3.connect(app.config['DATABASE_PATH'])
+from models import Task, User
 
 
 # helper functions
@@ -27,65 +27,52 @@ def login_required(test):
     return wrap
 
 
-# route handler functions
-@app.route('/')
-@login_required
-def home():
-    return render_template('index.html')
+# ROUTE HANDLER FUNC
+#-------------------
 
 # logout function
-@app.route('/logout')
+@app.route('/logout/')
 def logout():
     session.pop('logged_in', None)
+    session.pop('user_id', None)
     flash('Goodbye')
-    return redirect(url_for('home'))
+    return redirect(url_for('login'))
 
 
 # login function
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/', methods=['GET', 'POST'])
 def login():
+    error = None
+    form = LoginForm(request.form)
+
     if request.method == 'POST':
-        if request.form['username'] != app.config['USERNAME'] or \
-                request.form['password'] != app.config['PASSWORD']:
-            error = 'Invalid credentials. Login again.'
-            return render_template('login.html', error=error)
-        session['logged_in'] = True
-        flash('Welcome.')
-        return redirect(url_for('home'))
-    return render_template('login.html')
+        if form.validate_on_submit():
+            user = User.query.filter_by(name=request.form['name']).first()
+            if user is not None and user.password == request.form['password']:
+                session['logged_in'] = True
+                session['user_id'] = user.id
+                flash('Welcome!')
+                return redirect(url_for('tasks'))
+            else:
+                error = 'Invalid user or password.'
+
+        else:
+            error = 'Both fields are required.'
+    return render_template('login.html', form=form, error=error)
 
 
 # view tasks
 @app.route('/tasks/')
 @login_required
 def tasks():
-    g.db = connect_db()
+    open_tasks = db.session.query(Task).filter_by(status=1).order_by(Task.due_date.asc())
+    closed_tasks = db.session.query(Task).filter_by(status=0).order_by(Task.due_date.asc())
 
-    cursor = g.db.execute(
-        "SELECT name, due_date, priority, task_id FROM tasks WHERE status=1"
-    )
-
-    open_tasks = [
-        dict(
-            name=row[0], due_date=row[1], priority=row[2], task_id=row[3]
-        ) for row in cursor.fetchall()
-    ]
-    cursor = g.db.execute(
-        "SELECT name, due_date, priority, task_id FROM tasks WHERE status=0"
-    )
-
-    close_tasks = [
-        dict(
-            name=row[0], due_date=row[1], priority=row[2], task_id=row[3]
-        ) for row in cursor.fetchall()
-    ]
-
-    g.db.close()
     return render_template(
         'tasks.html',
         form=AddTaskForm(request.form),
         open_tasks=open_tasks,
-        close_tasks=close_tasks
+        closed_tasks=closed_tasks
     )
 
 
@@ -93,27 +80,22 @@ def tasks():
 @app.route('/add/', methods=['POST'])
 @login_required
 def new_task():
-    g.db = connect_db()
-    name = request.form['name']
-    date = request.form['due_date']
-    priority = request.form['priority']
+    form = AddTaskForm(request.form)
 
-    if not name or not date or not priority:
-        flash('All fields are required. Please try again.')
-
-        return redirect(url_for('tasks'))
-
-    n_task = [
-        request.form['name'],
-        request.form['due_date'],
-        request.form['priority'],
-        ]
-    g.db.execute(
-        "INSERT INTO tasks(name, due_date, priority, status) VALUES(?,?,?,1)", n_task)
-    g.db.commit()
-    g.db.close()
-    flash("New entry was successfully posted. Thanks.")
-
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            new_task = Task(
+                form.name.data,
+                form.due_date.data,
+                form.priority.data,
+                '1',
+                datetime.datetime.utcnow(),
+                session['user_id']
+            )
+            db.session.add(new_task)
+            db.session.commit()
+            flash('New entry was successfully posted. Thanks.')
+        print(form.errors)
     return redirect(url_for('tasks'))
 
 
@@ -121,24 +103,43 @@ def new_task():
 @app.route('/complete/<int:task_id>/')
 @login_required
 def complete(task_id):
-    g.db = connect_db()
-    g.db.execute("UPDATE tasks SET status=0 WHERE task_id="+str(task_id))
-    g.db.commit()
-    g.db.close()
+    new_id = task_id
+    db.session.query(Task).filter_by(task_id=new_id).update({'status': '0'})
+    db.session.commit()
     flash("Task was marked complete.")
 
     return redirect(url_for('tasks'))
-
 
 
 # delete task
 @app.route('/delete/<int:task_id>/')
 @login_required
 def delete_task(task_id):
-    g.db = connect_db()
-    g.db.execute("DELETE FROM tasks WHERE task_id="+str(task_id))
-    g.db.commit()
-    g.db.close()
+    new_id = task_id
+    db.session.query(Task).filter_by(task_id=new_id).delete()
+    db.session.commit()
     flash("Task was delete.")
 
     return redirect(url_for('tasks'))
+
+
+# registeration function
+@app.route('/register/', methods=['GET', 'POST'])
+def register():
+    error = None
+    form = RegisterForm(request.form)
+
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            new_user = User(
+                form.name.data,
+                form.email.data,
+                form.password.data
+            )
+            db.session.add(new_user)
+            db.session.commit()
+            flash('Thanks for registering. Please login.')
+            return redirect(url_for('login'))
+        print(False)
+        print(form.errors)
+    return render_template('register.html', form=form, error=error)
