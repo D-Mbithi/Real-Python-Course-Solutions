@@ -5,6 +5,8 @@ from flask import (
     )
 from flask_sqlalchemy import SQLAlchemy
 from forms import AddTaskForm, RegisterForm, LoginForm
+from sqlalchemy.exc import IntegrityError
+
 
 # config
 app = Flask(__name__)
@@ -14,6 +16,12 @@ db = SQLAlchemy(app)
 
 from models import Task, User
 
+
+def open_tasks():
+    return db.session.query(Task).filter_by(status=1).order_by(Task.due_date.asc())
+
+def closed_tasks():
+    return db.session.query(Task).filter_by(status=0).order_by(Task.due_date.asc())
 
 # helper functions
 def login_required(test):
@@ -65,14 +73,12 @@ def login():
 @app.route('/tasks/')
 @login_required
 def tasks():
-    open_tasks = db.session.query(Task).filter_by(status=1).order_by(Task.due_date.asc())
-    closed_tasks = db.session.query(Task).filter_by(status=0).order_by(Task.due_date.asc())
 
     return render_template(
         'tasks.html',
         form=AddTaskForm(request.form),
-        open_tasks=open_tasks,
-        closed_tasks=closed_tasks
+        open_tasks=open_tasks(),
+        closed_tasks=closed_tasks()
     )
 
 
@@ -80,6 +86,7 @@ def tasks():
 @app.route('/add/', methods=['POST'])
 @login_required
 def new_task():
+    error = None
     form = AddTaskForm(request.form)
 
     if request.method == 'POST':
@@ -95,8 +102,8 @@ def new_task():
             db.session.add(new_task)
             db.session.commit()
             flash('New entry was successfully posted. Thanks.')
-        print(form.errors)
-    return redirect(url_for('tasks'))
+            return redirect(url_for('tasks'))
+    return render_template('tasks.html', form=form, error=error)
 
 
 # mark as complete
@@ -114,7 +121,7 @@ def complete(task_id):
 # delete task
 @app.route('/delete/<int:task_id>/')
 @login_required
-def delete_task(task_id):
+def delete_entry(task_id):
     new_id = task_id
     db.session.query(Task).filter_by(task_id=new_id).delete()
     db.session.commit()
@@ -136,10 +143,20 @@ def register():
                 form.email.data,
                 form.password.data
             )
-            db.session.add(new_user)
-            db.session.commit()
-            flash('Thanks for registering. Please login.')
-            return redirect(url_for('login'))
+            try:
+                db.session.add(new_user)
+                db.session.commit()
+                flash('Thanks for registering. Please login.')
+                return redirect(url_for('login'))
+            except IntegrityError:
+                flash('The username or email already exist.')
+                return render_template('register.html', form=form, error=error)
         print(False)
         print(form.errors)
     return render_template('register.html', form=form, error=error)
+
+
+def flash_errors(form):
+    for field, errors in form.error.items():
+        for error in errors:
+            flash(u"Error in the %s field - %s " % (getattr(form, field).label.text, error), 'error')
