@@ -25,20 +25,18 @@
   </head>
 
   <body>
-    <header>
+    <header class="container-fluid">
       {% block header %}
       {% endblock %}
     </header>
 
     <main role="main" class="container-fluid">
       {% for message in get_flashed_messages() %}
-        <div class="flash">{{ message }}</div>
+        <div class="flash alert alert-success">{{ message }}</div>
       {% endfor %}
-
       {% if error %}
-        <div class="error"><strong>Error:</strong>{{ error }}</div>
+        <div class="error alert alert-danger"><strong>Error:</strong>{{ error }}</div>
       {% endif %}
-
       {% block content %}
       {% endblock %}
     </main>

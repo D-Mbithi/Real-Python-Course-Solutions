@@ -40,6 +40,7 @@ def login_required(test):
 
 # logout function
 @app.route('/logout/')
+@login_required
 def logout():
     session.pop('logged_in', None)
     session.pop('user_id', None)
@@ -62,7 +63,7 @@ def login():
                 flash('Welcome!')
                 return redirect(url_for('tasks'))
             else:
-                error = 'Invalid user or password.'
+                error = 'Invalid username or password.'
 
         else:
             error = 'Both fields are required.'
